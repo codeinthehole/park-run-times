@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.parkrun.org.uk)",
+      "Bash(python:*)",
+      "Bash(uv run *)"
+    ]
+  }
+}
