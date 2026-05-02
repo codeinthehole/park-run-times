@@ -1,0 +1,26 @@
+name: Update charts
+
+on:
+  schedule:
+    - cron: "0 9 * * 0"  # Every Sunday at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv run fetch_results.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add chart_all.png chart_focused.png
+          git diff --cached --quiet || git commit -m "Update charts"
+          git push
