@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
     "requests",
     "beautifulsoup4",
+    "matplotlib",
 ]
 
 [project.scripts]

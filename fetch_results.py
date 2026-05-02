@@ -1,12 +1,14 @@
 """
-Fetch parkrun results for athlete 5332183 and return a list of tuples:
-    (event, date, position, time, is_pb)
+Fetch parkrun results for athlete 5332183, plot a time-series line chart,
+and save it as chart.png (referenced by README.md).
 """
 
 import re
-import sys
 from datetime import date
+from pathlib import Path
 
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import requests
 from bs4 import BeautifulSoup
 
@@ -109,14 +111,55 @@ def fetch_results(session: requests.Session | None = None) -> list[tuple]:
     return results
 
 
+def plot_results(rows: list[tuple], output: Path = Path("chart.png"), y_min: float = 18, y_max: float | None = None) -> None:
+    events = sorted({r[0] for r in rows})
+    colours = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    event_colour = {e: colours[i % len(colours)] for i, e in enumerate(events)}
+
+    all_dates = [r[1] for r in rows]
+    all_times = [r[3] / 60 for r in rows]  # seconds → minutes
+
+    fig, ax = plt.subplots(figsize=(14, 6))
+
+    for event in events:
+        colour = event_colour[event]
+        event_rows = [r for r in rows if r[0] == event]
+        dates = [r[1] for r in event_rows]
+        times = [r[3] / 60 for r in event_rows]
+        ax.scatter(dates, times, color=colour, s=40, zorder=2, label=event)
+
+    # X axis: one tick per year, minor ticks every month
+    ax.xaxis.set_major_locator(mdates.YearLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax.xaxis.set_minor_locator(mdates.MonthLocator())
+    ax.set_xlim(min(all_dates), max(all_dates))
+    ax.set_ylim(bottom=y_min, top=y_max)
+
+    # Y axis: MM:SS labels
+    def fmt_mins(val, _):
+        m, s = divmod(int(round(val * 60)), 60)
+        return f"{m}:{s:02d}"
+
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(fmt_mins))
+
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Time")
+    ax.set_title("Parkrun times")
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+
+    # Deduplicate legend entries (one per event, not one per scatter call)
+    handles, labels = ax.get_legend_handles_labels()
+    seen = {}
+    for h, l in zip(handles, labels):
+        seen.setdefault(l, h)
+    ax.legend(seen.values(), seen.keys(), loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
+
+    fig.tight_layout()
+    fig.savefig(output, dpi=150)
+    print(f"Chart saved to {output}")
+
+
 if __name__ == "__main__":
     rows = fetch_results()
-    print(f"{'Event':<30} {'Date':<12} {'Pos':>4} {'Time':>6} {'PB'}")
-    print("-" * 60)
-    for event, run_date, position, time_s, is_pb in rows:
-        mins, secs = divmod(time_s, 60)
-        print(
-            f"{event:<30} {run_date!s:<12} {position:>4} "
-            f"{mins:02d}:{secs:02d}  {'*' if is_pb else ''}"
-        )
-    print(f"\n{len(rows)} results")
+    plot_results(rows, output=Path("chart_all.png"))
+    plot_results(rows, output=Path("chart_focused.png"), y_max=24, y_min=19)
